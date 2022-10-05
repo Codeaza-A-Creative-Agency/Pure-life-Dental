@@ -2,7 +2,7 @@ import scrapy
 import pandas as pd
 df= pd.read_csv(r'C:\Users\admin\Categories.csv')
 links= df['Links'].tolist()
-links= links[:30]
+# links= links[:10]
 class ScrapSpider(scrapy.Spider):
     name = 'scrap'
     # allowed_domains =['https://www.purelifedental.com/']
@@ -13,7 +13,9 @@ class ScrapSpider(scrapy.Spider):
 
     def parse_links(self, response):
         p_links={"Product_link":[]}
+        
         r1= response.xpath("//a[@class='action tocart primary']/@href").extract()
+        cat= response.xpath("//span[@data-ui-id='page-title-wrapper']/text()").extract_first()
         # since r1 is a list of links, we need to iterate over it and append it to the dictionary
         for i in r1:
             p_links.get("Product_link").append(str(i))
@@ -29,9 +31,9 @@ class ScrapSpider(scrapy.Spider):
         
         # sending the dictionary to the parse function
         for url in  p_links['Product_link']:
-            yield scrapy.Request(url=url, callback=self.parse)
+            yield scrapy.Request(url=url, callback=self.parse, meta={'cat': cat})
         # .............
-        
+
        
         
     
@@ -46,7 +48,8 @@ class ScrapSpider(scrapy.Spider):
                 "Description": response.css('div.features__detail ::text').extract(),
                 "Packaging": r.xpath('//td[@data-th="Packaging"]/text()').extract_first(),
                 "Qty":r.xpath('//td[@data-th="Packaging"]/text()').extract_first(),
-                'Categories':response.xpath("(//ul[@class='items']//li/a)[2]/text()").extract(),
+                "Categories": response.meta.get('cat'),
+                # 'Categories':response.xpath("(//ul[@class='items']//li/a)[2]/text()").extract(),
                 "Subcategories": "-1" ,# response.xpath("//li[@class='item cms_page']/strong/text()").extract(),
                 "Product Page link": response.url,
                 "Attachment URL": '-1',
