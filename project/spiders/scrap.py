@@ -1,6 +1,9 @@
 import scrapy
 import pandas as pd
-df= pd.read_csv(r'C:\Users\admin\Categories.csv')
+from bs4 import BeautifulSoup
+import re
+
+df= pd.read_csv(r'project\spiders\Categories.csv')
 links= df['Links'].tolist()
 links= links[:100]
 class ScrapSpider(scrapy.Spider):
@@ -38,29 +41,45 @@ class ScrapSpider(scrapy.Spider):
         
     
     def parse(self,response):
-        total_rows = response.xpath('//div[@class="product-add-form"]//tr')
+        total_rows = response.xpath('//div[@class="product-add-form"]//tbody//tr').extract()
         if total_rows:
-            total_rows= total_rows[1:]
+            # total_rows= total_rows[1:]
             for r in total_rows:
-                yield{
-                    "Seller Platform":"Pure life dental",
-                    "Seller SKU": r.xpath('//td[@data-th="Item #"]/text()').extract_first(),
-                    "Manufacture": response.xpath("//div[@class='attr__manufacturer']/text()").extract(),
-                    "Manufacture Code": r.xpath('//td[@data-th="Mfg #"]/text()').extract_first(),
-                    "Product Title": response.xpath('//span[@itemprop="name"]/text()').extract(),
-                    "Description": response.css('div.features__detail ::text').extract(),
-                    "Packaging": r.xpath('//td[@data-th="Packaging"]/text()').extract_first(),
-                    "Qty":r.xpath('//td[@data-th="Packaging"]/text()').extract_first(),
-                    "Categories": response.meta.get('cat'),
-                    # 'Categories':response.xpath("(//ul[@class='items']//li/a)[2]/text()").extract(),
-                    "Subcategories": "-1" ,# response.xpath("//li[@class='item cms_page']/strong/text()").extract(),
-                    "Product Page link": response.url,
-                    "Attachment URL": '-1',
-                    "Image link": response.css('img.gallery-placeholder__image ::attr(src)').extract(),
-                    "Attributes":'-1'
-                }
+                soup = BeautifulSoup(r)
+                packaging = soup.find('td', {'data-th':"Packaging"}).text.strip()
+                try:
+                    packaging = packaging.replace('"', "")
+                    if packaging:
+                        searchObj = re.search(r'([\d\./]+)/([a-zA-Z]+)', packaging)
+                    if not searchObj:
+                        searchObj = re.search(r'([\dx\s\./]*)\s*(ml|gm)', packaging)
+                    if not searchObj:
+                        searchObj = re.search(r'([\d\./oz]*)\s*([a-zA-Z]+)', packaging)
+                    if not searchObj:
+                        searchObj = re.search(r'([\d\./]+) ([a-zA-Z]+)', packaging)
+                    if searchObj:
+                        qty = searchObj.group(1)
+                        pkg = searchObj.group(2)
+                    else:
+                        qty = ""
+                        pkg = ""
+                    
+                    yield{
+                        "Seller Platform":"Pure life dental",
+                        "Seller SKU": soup.find('td', {'data-th':"Item #"}).text.strip(),
+                        "Manufacture": response.xpath("//div[@class='attr__manufacturer']/text()").extract_first(),
+                        "Manufacture Code": soup.find('td', {'data-th':"Mfg #"}).text.strip(),
+                        "Product Title": response.xpath('//span[@itemprop="name"]/text()').extract_first() + " ({})".format(soup.find('td', {'data-th':"Description"}).text.strip()),
+                        "Description": response.css('div.features__detail ::text').extract(),
+                        "Packaging": pkg,
+                        "Qty": qty.strip().replace('\"', ""),
+                        "Categories": response.meta.get('cat'),
+                        # 'Categories':response.xpath("(//ul[@class='items']//li/a)[2]/text()").extract(),
+                        "Subcategories": "-1" ,# response.xpath("//li[@class='item cms_page']/strong/text()").extract(),
+                        "Product Page link": response.url,
+                        "Attachment URL": '-1',
+                        "Image link": response.css('img.gallery-placeholder__image ::attr(src)').extract(),
+                    }
+                except Exception as e:
+                    print(f"ERROR: at{e} at {response.url}")
                 
-
-
-
-
